@@ -1,19 +1,20 @@
-# Hotel Biryani Management - Frontend
+# Hotel Biryani Management - API
 
-React + TypeScript frontend for the Hotel Biryani Management System.
+Node.js + Express + TypeScript API for the Hotel Biryani Management System.
 
 ## Features
 
-- Recipe selection and ingredient calculation
-- Dynamic quantity scaling
+- Recipe management with ingredient scaling
+- Dynamic quantity calculation (1kg base to any quantity)
 - Cost calculation
-- Responsive UI design
+- RESTful API endpoints
+- TypeScript for type safety
 
 ## Tech Stack
 
-- **React 18** with TypeScript
-- **Vite** for fast development
-- **CSS3** for styling
+- **Node.js** with Express
+- **TypeScript** for type safety
+- **In-memory storage** (POC - will migrate to PostgreSQL)
 
 ## Development
 
@@ -28,41 +29,89 @@ React + TypeScript frontend for the Hotel Biryani Management System.
 npm install
 ```
 
-2. Start development server:
+2. Setup environment:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+3. Start development server:
 ```bash
 npm run dev
 ```
 
-3. Build for production:
+4. Build for production:
 ```bash
 npm run build
+npm start
 ```
 
 ### Available Scripts
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
+- `npm run dev` - Start development server with nodemon
+- `npm run build` - Compile TypeScript to JavaScript
+- `npm start` - Start production server
+- `npm test` - Run tests
 
-## API Integration
+## API Endpoints
 
-The frontend connects to the API server at `http://localhost:5000`
+### Recipes
+- `GET /api/recipes` - Get all recipes
+- `GET /api/recipes/:id` - Get recipe by ID
+- `POST /api/recipes/:id/scale` - Scale recipe ingredients
+- `POST /api/recipes` - Add new recipe
 
-### Environment Variables
+### Health Check
+- `GET /api/health` - API health status
 
-Create `.env` file for custom API URL:
+## Sample Usage
+
+**Scale Recipe:**
+```bash
+POST /api/recipes/1/scale
+Content-Type: application/json
+
+{
+  "targetQuantity": 5
+}
 ```
-VITE_API_URL=http://localhost:5000
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "name": "Mutton Biryani",
+    "target_quantity": 5,
+    "scaled_ingredients": [
+      {
+        "name": "Basmati Rice",
+        "quantity": 2.5,
+        "unit": "kg",
+        "cost_per_unit": 120
+      }
+    ],
+    "total_cost": 1850.00
+  }
+}
 ```
 
 ## Project Structure
 
 ```
 src/
-├── components/          # React components
-│   └── RecipeSelector.tsx
-├── App.tsx             # Main app component
-├── App.css             # Global styles
-└── main.tsx            # App entry point
+├── controllers/        # API controllers
+├── models/            # Data models & interfaces
+├── routes/            # Express routes
+├── services/          # Business logic
+├── middleware/        # Express middleware
+└── server.ts          # Main server file
+```
+
+## Environment Variables
+
+```
+PORT=5000
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:3000
 ```
