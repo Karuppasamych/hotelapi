@@ -1,5 +1,5 @@
 -- Create users table for authentication
-USE hotel_biryani_db;
+USE myapp_hotelstaging;
 
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
