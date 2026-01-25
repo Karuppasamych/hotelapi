@@ -1,5 +1,5 @@
 -- Update admin user password
-USE myapp_hotelstaging;
+USE myapp_hotelstaging; 
 
 -- Delete existing admin user if exists
 DELETE FROM users WHERE username = 'admin';
