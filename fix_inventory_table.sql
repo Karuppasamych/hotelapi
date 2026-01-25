@@ -1,5 +1,5 @@
 -- Fix inventory table structure for raw materials
-USE hotel_biryani_db;
+USE myapp_hotelstaging;
 
 -- Create a new inventory table with correct structure
 DROP TABLE IF EXISTS inventory_backup;
