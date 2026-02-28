@@ -85,7 +85,17 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { product_code, name, category, quantity, quantity_available, unit, price, minimum_stock } = req.body;
-    const quantityValue = quantity_available || quantity;
+    const quantityValue = quantity_available !== undefined ? quantity_available : quantity;
+    
+    console.log('Update inventory request:', { id, body: req.body });
+    console.log('Values to update:', { product_code, name, category, quantityValue, unit, price, minimum_stock });
+    
+    // Validate required fields
+    if (product_code === undefined || name === undefined || category === undefined || 
+        quantityValue === undefined || unit === undefined || price === undefined || minimum_stock === undefined) {
+      console.error('Undefined field detected:', { product_code, name, category, quantityValue, unit, price, minimum_stock });
+      return res.status(400).json({ error: 'Missing required fields', details: 'All fields must be provided' });
+    }
     
     await pool.execute(
       'UPDATE inventory SET product_code = ?, name = ?, category = ?, quantity_available = ?, unit = ?, price = ?, minimum_stock = ? WHERE id = ?',
@@ -100,7 +110,7 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
     res.json(updatedItem[0]);
   } catch (error) {
     console.error('Error updating inventory item:', error);
-    res.status(500).json({ error: 'Failed to update item' });
+    res.status(500).json({ error: 'Failed to update item', details: (error as Error).message });
   }
 };
 

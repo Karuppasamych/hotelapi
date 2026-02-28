@@ -1,14 +1,12 @@
-import { Router } from 'express';
-import { 
-  getAllRecipes, 
-  getRecipeById, 
-  scaleRecipe
-} from '../controllers/recipeController';
+import express from 'express';
+import { getAllRecipes, getRecipeById, createRecipe, updateRecipe, deleteRecipe } from '../controllers/recipeController';
 
-const router = Router();
+const router = express.Router();
 
 router.get('/', getAllRecipes);
 router.get('/:id', getRecipeById);
-router.post('/:id/scale', scaleRecipe);
+router.post('/', createRecipe);
+router.put('/:id', updateRecipe);
+router.delete('/:id', deleteRecipe);
 
 export default router;
