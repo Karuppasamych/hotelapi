@@ -164,3 +164,44 @@ export const deleteRecipe = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Error deleting recipe', error });
   }
 };
+
+export const getRecipesForCalculator = async (req: Request, res: Response) => {
+  try {
+    const [recipes] = await pool.query<RowDataPacket[]>(`
+      SELECT r.id, r.name, r.category, r.servings, c.cuisine_name as cuisine 
+      FROM recipes r 
+      LEFT JOIN cuisines c ON r.cuisine_id = c.id 
+      ORDER BY r.name
+    `);
+    
+    const recipesWithIngredients = [];
+    
+    for (const recipe of recipes) {
+      const [ingredients] = await pool.query<RowDataPacket[]>(
+        `SELECT ri.ingredient_name, ri.quantity, ri.unit, i.id as ingredientId
+         FROM recipe_ingredients ri
+         LEFT JOIN inventory i ON LOWER(TRIM(ri.ingredient_name)) = LOWER(TRIM(i.name))
+         WHERE ri.recipe_id = ?`,
+        [recipe.id]
+      );
+      
+      recipesWithIngredients.push({
+        id: recipe.id.toString(),
+        name: recipe.name,
+        category: recipe.category,
+        cuisine: recipe.cuisine || 'Other',
+        servings: recipe.servings,
+        ingredients: ingredients.map((ing: any) => ({
+          ingredientId: ing.ingredientId?.toString() || '0',
+          amount: parseFloat(ing.quantity) || 0,
+          ingredientName: ing.ingredient_name,
+          unit: ing.unit
+        }))
+      });
+    }
+    
+    res.json(recipesWithIngredients);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching recipes for calculator', error });
+  }
+};
