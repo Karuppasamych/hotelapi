@@ -12,6 +12,8 @@ import salesRoutes from './routes/salesRoutes';
 import preparedRoutes from './routes/preparedRoutes';
 import cuisineRoutes from './routes/cuisineRoutes';
 import confirmedMenuRoutes from './routes/confirmedMenuRoutes';
+import purchaseListRoutes from './routes/purchaseListRoutes';
+import billingRoutes from './routes/billingRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -37,6 +39,8 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/prepared', preparedRoutes);
 app.use('/api/cuisines', cuisineRoutes);
 app.use('/api/confirmed-menus', confirmedMenuRoutes);
+app.use('/api/purchase-list', purchaseListRoutes);
+app.use('/api/billing', billingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
