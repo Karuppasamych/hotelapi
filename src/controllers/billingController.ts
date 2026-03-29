@@ -148,3 +148,54 @@ export const getBillsByDate = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch bills' });
   }
 };
+
+export const getSoldCountsByDate = async (req: Request, res: Response) => {  try {
+    const { date } = req.params;
+    // Get sold counts for the given date AND surrounding dates (±1 day) to handle date mismatches
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT bi.item_name, SUM(bi.quantity) as sold
+       FROM bill_items bi
+       JOIN bills b ON bi.bill_id = b.id
+       WHERE DATE(b.created_at) BETWEEN DATE_SUB(?, INTERVAL 1 DAY) AND DATE_ADD(?, INTERVAL 1 DAY)
+       GROUP BY bi.item_name`,
+      [date, date]
+    );
+    const soldMap: Record<string, number> = {};
+    rows.forEach(row => {
+      soldMap[row.item_name] = parseFloat(row.sold) || 0;
+    });
+    res.json(soldMap);
+  } catch (error) {
+    console.error('Error fetching sold counts:', error);
+    res.status(500).json({ error: 'Failed to fetch sold counts' });
+  }
+};
+
+export const createCancellation = async (req: Request, res: Response) => {
+  try {
+    const { item_name, quantity, price, reason, cancelled_by, table_number, order_type } = req.body;
+    if (!item_name) {
+      return res.status(400).json({ success: false, error: 'item_name is required' });
+    }
+    const [result] = await pool.query<ResultSetHeader>(
+      'INSERT INTO order_cancellations (item_name, quantity, price, reason, cancelled_by, table_number, order_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [item_name, quantity || 1, price || 0, reason || null, cancelled_by || null, table_number || null, order_type || null]
+    );
+    res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Cancellation recorded' });
+  } catch (error) {
+    console.error('Error creating cancellation:', error);
+    res.status(500).json({ success: false, error: 'Error recording cancellation', details: (error as Error).message });
+  }
+};
+
+export const getAllCancellations = async (req: Request, res: Response) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM order_cancellations ORDER BY created_at DESC'
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Error fetching cancellations:', error);
+    res.status(500).json({ success: false, error: 'Error fetching cancellations' });
+  }
+};

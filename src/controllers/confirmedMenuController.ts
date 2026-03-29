@@ -7,12 +7,12 @@ export const createConfirmedMenu = async (req: Request, res: Response) => {
   try {
     await connection.beginTransaction();
     
-    const { date, dishes } = req.body;
+    const { date, dishes, meal_time } = req.body;
     
     // Insert confirmed menu
     const [result] = await connection.query<ResultSetHeader>(
-      'INSERT INTO confirmed_menus (date) VALUES (?)',
-      [date]
+      'INSERT INTO confirmed_menus (date, meal_time) VALUES (?, ?)',
+      [date, meal_time || 'lunch']
     );
     
     const menuId = result.insertId;
@@ -31,6 +31,7 @@ export const createConfirmedMenu = async (req: Request, res: Response) => {
     res.status(201).json({ success: true, data: { id: menuId }, message: 'Menu confirmed successfully' });
   } catch (error) {
     await connection.rollback();
+    console.error('Error confirming menu:', error);
     res.status(500).json({ success: false, error: 'Error confirming menu' });
   } finally {
     connection.release();
@@ -40,9 +41,9 @@ export const createConfirmedMenu = async (req: Request, res: Response) => {
 export const getAllConfirmedMenus = async (req: Request, res: Response) => {
   try {
     const [menus] = await pool.query<RowDataPacket[]>(`
-      SELECT id, date, created_at as timestamp 
+      SELECT id, date, meal_time, created_at as timestamp 
       FROM confirmed_menus 
-      ORDER BY date DESC
+      ORDER BY date DESC, FIELD(meal_time, 'breakfast', 'lunch', 'evening_snacks', 'dinner', 'all_time')
     `);
     
     const menusWithDishes = [];
@@ -92,6 +93,8 @@ export const getAllConfirmedMenus = async (req: Request, res: Response) => {
         id: menu.id.toString(),
         date: new Date(menu.date).toISOString().split('T')[0],
         timestamp: new Date(menu.timestamp).getTime(),
+        mealTime: menu.meal_time || 'lunch',
+        status: 'queued',
         dishes: dishesWithIngredients
       });
     }
@@ -136,7 +139,12 @@ export const updateConfirmedMenu = async (req: Request, res: Response) => {
     await connection.beginTransaction();
     
     const { id } = req.params;
-    const { dishes } = req.body;
+    const { dishes, meal_time } = req.body;
+    
+    // Update meal_time if provided
+    if (meal_time) {
+      await connection.query('UPDATE confirmed_menus SET meal_time = ? WHERE id = ?', [meal_time, id]);
+    }
     
     // Delete old dishes
     await connection.query('DELETE FROM confirmed_menu_dishes WHERE menu_id = ?', [id]);
@@ -169,5 +177,16 @@ export const deleteConfirmedMenu = async (req: Request, res: Response) => {
     res.json({ success: true, message: 'Menu deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Error deleting menu' });
+  }
+};
+
+export const updateConfirmedMenuStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    await pool.query('UPDATE confirmed_menus SET status = ? WHERE id = ?', [status, id]);
+    res.json({ success: true, message: 'Status updated successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Error updating status' });
   }
 };

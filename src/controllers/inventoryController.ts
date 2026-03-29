@@ -13,6 +13,26 @@ interface InventoryRow extends RowDataPacket {
   minimum_stock: number;
 }
 
+export const getNextProductCode = async (req: Request, res: Response) => {
+  try {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT product_code FROM inventory WHERE product_code LIKE 'MPH%' ORDER BY CAST(SUBSTRING(product_code, 4) AS UNSIGNED) DESC LIMIT 1`
+    );
+    
+    let nextNumber = 1;
+    if (rows.length > 0) {
+      const lastCode = rows[0].product_code as string;
+      const lastNumber = parseInt(lastCode.replace('MPH', ''), 10);
+      if (!isNaN(lastNumber)) nextNumber = lastNumber + 1;
+    }
+    
+    res.json({ next_code: `MPH${String(nextNumber).padStart(3, '0')}` });
+  } catch (error) {
+    console.error('Error generating next product code:', error);
+    res.status(500).json({ error: 'Failed to generate product code' });
+  }
+};
+
 export const getAllInventory = async (req: Request, res: Response) => {
   try {
     const [rows] = await pool.execute<InventoryRow[]>(`

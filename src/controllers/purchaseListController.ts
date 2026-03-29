@@ -69,7 +69,10 @@ export const getPurchaseListByDate = async (req: Request, res: Response) => {
   try {
     const { date } = req.params;
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM purchase_list WHERE date = ? ORDER BY created_at DESC',
+      `SELECT pl.*, COALESCE(i.category, 'Uncategorized') as category 
+       FROM purchase_list pl 
+       LEFT JOIN inventory i ON pl.inventory_id = i.id 
+       WHERE pl.date = ? ORDER BY pl.created_at DESC`,
       [date]
     );
     res.json({ success: true, data: rows });
@@ -82,7 +85,10 @@ export const getPurchaseListByDate = async (req: Request, res: Response) => {
 export const getAllPurchaseList = async (req: Request, res: Response) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM purchase_list ORDER BY date DESC, created_at DESC'
+      `SELECT pl.*, COALESCE(i.category, 'Uncategorized') as category 
+       FROM purchase_list pl 
+       LEFT JOIN inventory i ON pl.inventory_id = i.id 
+       ORDER BY pl.date DESC, pl.created_at DESC`
     );
     res.json({ success: true, data: rows });
   } catch (error) {
@@ -99,5 +105,23 @@ export const deletePurchaseItem = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error deleting purchase item:', error);
     res.status(500).json({ success: false, error: 'Error deleting purchase item' });
+  }
+};
+
+export const updatePurchaseStatus = async (req: Request, res: Response) => {
+  try {
+    const { ids, status } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'ids array is required' });
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    await pool.query(
+      `UPDATE purchase_list SET status = ? WHERE id IN (${placeholders})`,
+      [status || 'purchased', ...ids]
+    );
+    res.json({ success: true, message: `${ids.length} item(s) updated` });
+  } catch (error) {
+    console.error('Error updating purchase status:', error);
+    res.status(500).json({ success: false, error: 'Error updating status' });
   }
 };

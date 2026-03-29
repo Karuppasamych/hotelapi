@@ -4,7 +4,8 @@ import {
   getAllConfirmedMenus,
   getConfirmedMenuByDate,
   updateConfirmedMenu,
-  deleteConfirmedMenu
+  deleteConfirmedMenu,
+  updateConfirmedMenuStatus
 } from '../controllers/confirmedMenuController';
 
 const router = Router();
@@ -13,6 +14,7 @@ router.post('/', createConfirmedMenu);
 router.get('/', getAllConfirmedMenus);
 router.get('/:date', getConfirmedMenuByDate);
 router.put('/:id', updateConfirmedMenu);
+router.put('/:id/status', updateConfirmedMenuStatus);
 router.delete('/:id', deleteConfirmedMenu);
 
 export default router;

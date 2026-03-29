@@ -7,12 +7,14 @@ import {
   deleteInventoryItem,
   getInventoryByCategory,
   getLowStockItems,
-  searchInventoryItems
+  searchInventoryItems,
+  getNextProductCode
 } from '../controllers/inventoryController';
 
 const router = Router();
 
 // Inventory routes
+router.get('/next-code', getNextProductCode);
 router.get('/', getAllInventory);
 router.get('/low-stock', getLowStockItems);
 router.get('/search', searchInventoryItems);

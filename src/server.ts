@@ -14,6 +14,7 @@ import cuisineRoutes from './routes/cuisineRoutes';
 import confirmedMenuRoutes from './routes/confirmedMenuRoutes';
 import purchaseListRoutes from './routes/purchaseListRoutes';
 import billingRoutes from './routes/billingRoutes';
+import kitchenRoutes from './routes/kitchenRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -28,8 +29,8 @@ connectDB();
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN }));
 app.use(morgan('combined'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -41,6 +42,7 @@ app.use('/api/cuisines', cuisineRoutes);
 app.use('/api/confirmed-menus', confirmedMenuRoutes);
 app.use('/api/purchase-list', purchaseListRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/kitchen', kitchenRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

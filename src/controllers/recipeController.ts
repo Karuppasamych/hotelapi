@@ -67,12 +67,12 @@ export const createRecipe = async (req: Request, res: Response) => {
   try {
     await connection.beginTransaction();
     
-    const { name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, ingredients, instructions } = req.body;
+    const { name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price, ingredients, instructions } = req.body;
     
     // Insert recipe
     const [result] = await connection.query<ResultSetHeader>(
-      'INSERT INTO recipes (name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty]
+      'INSERT INTO recipes (name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price || 0]
     );
     
     const recipeId = result.insertId;
@@ -113,12 +113,12 @@ export const updateRecipe = async (req: Request, res: Response) => {
     await connection.beginTransaction();
     
     const { id } = req.params;
-    const { name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, ingredients, instructions } = req.body;
+    const { name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price, ingredients, instructions } = req.body;
     
     // Update recipe
     await connection.query(
-      'UPDATE recipes SET name = ?, category = ?, cuisine_id = ?, description = ?, prep_time = ?, cook_time = ?, servings = ?, difficulty = ? WHERE id = ?',
-      [name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, id]
+      'UPDATE recipes SET name = ?, category = ?, cuisine_id = ?, description = ?, prep_time = ?, cook_time = ?, servings = ?, difficulty = ?, price = ? WHERE id = ?',
+      [name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price || 0, id]
     );
     
     // Delete old ingredients and instructions
@@ -156,12 +156,47 @@ export const updateRecipe = async (req: Request, res: Response) => {
 };
 
 export const deleteRecipe = async (req: Request, res: Response) => {
+  const connection = await pool.getConnection();
   try {
+    await connection.beginTransaction();
     const { id } = req.params;
-    await pool.query('DELETE FROM recipes WHERE id = ?', [id]);
+
+    // Fetch recipe ingredients and restore inventory
+    const [ingredients] = await connection.query<RowDataPacket[]>(
+      'SELECT ingredient_name, quantity, unit FROM recipe_ingredients WHERE recipe_id = ?',
+      [id]
+    );
+
+    for (const ing of ingredients) {
+      const [items] = await connection.query<RowDataPacket[]>(
+        'SELECT id, quantity_available, unit FROM inventory WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))',
+        [ing.ingredient_name]
+      );
+      if (items.length > 0) {
+        const item = items[0];
+        const recipeQty = parseFloat(ing.quantity) || 0;
+        const recipeUnit = (ing.unit || '').toLowerCase();
+        const invUnit = (item.unit || '').toLowerCase();
+        let convertedQty = recipeQty;
+        if (recipeUnit === 'g' && invUnit === 'kg') convertedQty = recipeQty / 1000;
+        else if (recipeUnit === 'kg' && invUnit === 'g') convertedQty = recipeQty * 1000;
+        else if (recipeUnit === 'ml' && invUnit === 'l') convertedQty = recipeQty / 1000;
+        else if (recipeUnit === 'l' && invUnit === 'ml') convertedQty = recipeQty * 1000;
+        await connection.query(
+          'UPDATE inventory SET quantity_available = quantity_available + ? WHERE id = ?',
+          [convertedQty, item.id]
+        );
+      }
+    }
+
+    await connection.query('DELETE FROM recipes WHERE id = ?', [id]);
+    await connection.commit();
     res.json({ message: 'Recipe deleted successfully' });
   } catch (error) {
+    await connection.rollback();
     res.status(500).json({ message: 'Error deleting recipe', error });
+  } finally {
+    connection.release();
   }
 };
 
