@@ -5,12 +5,14 @@ import {
   getConfirmedMenuByDate,
   updateConfirmedMenu,
   deleteConfirmedMenu,
-  updateConfirmedMenuStatus
+  updateConfirmedMenuStatus,
+  reduceServings
 } from '../controllers/confirmedMenuController';
 
 const router = Router();
 
 router.post('/', createConfirmedMenu);
+router.put('/reduce-servings', reduceServings);
 router.get('/', getAllConfirmedMenus);
 router.get('/:date', getConfirmedMenuByDate);
 router.put('/:id', updateConfirmedMenu);

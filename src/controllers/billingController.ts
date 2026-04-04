@@ -149,20 +149,26 @@ export const getBillsByDate = async (req: Request, res: Response) => {
   }
 };
 
-export const getSoldCountsByDate = async (req: Request, res: Response) => {  try {
+export const getSoldCountsByDate = async (req: Request, res: Response) => {
+  try {
     const { date } = req.params;
-    // Get sold counts for the given date AND surrounding dates (±1 day) to handle date mismatches
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT bi.item_name, SUM(bi.quantity) as sold
-       FROM bill_items bi
-       JOIN bills b ON bi.bill_id = b.id
-       WHERE DATE(b.created_at) BETWEEN DATE_SUB(?, INTERVAL 1 DAY) AND DATE_ADD(?, INTERVAL 1 DAY)
-       GROUP BY bi.item_name`,
+      `SELECT bi.item_name, SUM(bi.quantity) as sold FROM bill_items bi JOIN bills b ON bi.bill_id = b.id WHERE DATE(b.created_at) BETWEEN DATE_SUB(?, INTERVAL 1 DAY) AND DATE_ADD(?, INTERVAL 1 DAY) GROUP BY bi.item_name`,
       [date, date]
     );
+    let cancelledMap: Record<string, number> = {};
+    try {
+      const [cancellations] = await pool.query<RowDataPacket[]>(
+        `SELECT item_name, SUM(quantity) as cancelled FROM order_cancellations WHERE reason != 'Prepared and cancelled' AND DATE(created_at) BETWEEN DATE_SUB(?, INTERVAL 1 DAY) AND DATE_ADD(?, INTERVAL 1 DAY) GROUP BY item_name`,
+        [date, date]
+      );
+      cancellations.forEach((row: any) => { cancelledMap[row.item_name] = parseFloat(row.cancelled) || 0; });
+    } catch (e) { /* table may not exist */ }
     const soldMap: Record<string, number> = {};
     rows.forEach(row => {
-      soldMap[row.item_name] = parseFloat(row.sold) || 0;
+      const sold = parseFloat(row.sold) || 0;
+      const reverted = cancelledMap[row.item_name] || 0;
+      soldMap[row.item_name] = Math.max(0, sold - reverted);
     });
     res.json(soldMap);
   } catch (error) {

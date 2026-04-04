@@ -41,7 +41,7 @@ export const createConfirmedMenu = async (req: Request, res: Response) => {
 export const getAllConfirmedMenus = async (req: Request, res: Response) => {
   try {
     const [menus] = await pool.query<RowDataPacket[]>(`
-      SELECT id, date, meal_time, created_at as timestamp 
+      SELECT id, DATE_FORMAT(date, '%Y-%m-%d') as date, meal_time, created_at as timestamp 
       FROM confirmed_menus 
       ORDER BY date DESC, FIELD(meal_time, 'breakfast', 'lunch', 'evening_snacks', 'dinner', 'all_time')
     `);
@@ -91,7 +91,7 @@ export const getAllConfirmedMenus = async (req: Request, res: Response) => {
       
       menusWithDishes.push({
         id: menu.id.toString(),
-        date: new Date(menu.date).toISOString().split('T')[0],
+        date: menu.date,
         timestamp: new Date(menu.timestamp).getTime(),
         mealTime: menu.meal_time || 'lunch',
         status: 'queued',
@@ -110,7 +110,7 @@ export const getConfirmedMenuByDate = async (req: Request, res: Response) => {
     const { date } = req.params;
     
     const [menus] = await pool.query<RowDataPacket[]>(
-      'SELECT id, date, created_at as timestamp FROM confirmed_menus WHERE date = ?',
+      'SELECT id, DATE_FORMAT(date, \'%Y-%m-%d\') as date, created_at as timestamp FROM confirmed_menus WHERE date = ?',
       [date]
     );
     
@@ -188,5 +188,32 @@ export const updateConfirmedMenuStatus = async (req: Request, res: Response) => 
     res.json({ success: true, message: 'Status updated successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Error updating status' });
+  }
+};
+
+export const reduceServings = async (req: Request, res: Response) => {
+  try {
+    const { dish_name, quantity } = req.body;
+    if (!dish_name || !quantity) {
+      return res.status(400).json({ success: false, error: 'dish_name and quantity are required' });
+    }
+    // Find the confirmed_menu_dishes entry by joining with recipes to match dish name
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT cmd.id, cmd.servings 
+       FROM confirmed_menu_dishes cmd 
+       JOIN recipes r ON cmd.dish_id = r.id 
+       WHERE r.name = ? AND cmd.servings > 0
+       ORDER BY cmd.id DESC LIMIT 1`,
+      [dish_name]
+    );
+    if (rows.length === 0) {
+      return res.json({ success: true, message: 'No matching confirmed menu dish found' });
+    }
+    const newServings = Math.max(0, rows[0].servings - quantity);
+    await pool.query('UPDATE confirmed_menu_dishes SET servings = ? WHERE id = ?', [newServings, rows[0].id]);
+    res.json({ success: true, message: `Servings reduced to ${newServings}` });
+  } catch (error) {
+    console.error('Error reducing servings:', error);
+    res.status(500).json({ success: false, error: 'Error reducing servings' });
   }
 };
