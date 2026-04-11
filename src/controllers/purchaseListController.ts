@@ -34,18 +34,36 @@ export const createPurchaseItem = async (req: Request, res: Response) => {
 
     const required = quantity > inStock ? quantity : 0;
 
-    // Insert into purchase_list
-    const [result] = await connection.query<ResultSetHeader>(
-      'INSERT INTO purchase_list (item_name, quantity, unit, in_stock, required, inventory_id, date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [item_name, quantity, unit, inStock, required, inventoryId, date]
+    // Check if same item already exists in purchase list with pending status for same date
+    const [pendingItems] = await connection.query<RowDataPacket[]>(
+      "SELECT id, quantity FROM purchase_list WHERE LOWER(item_name) = LOWER(?) AND date = ? AND status = 'pending'",
+      [item_name, date]
     );
+
+    let resultId: number;
+    if (pendingItems.length > 0) {
+      // Update existing pending item - add to quantity
+      const newQty = parseFloat(pendingItems[0].quantity) + quantity;
+      await connection.query(
+        'UPDATE purchase_list SET quantity = ?, in_stock = ?, required = ? WHERE id = ?',
+        [newQty, inStock, newQty > inStock ? newQty : 0, pendingItems[0].id]
+      );
+      resultId = pendingItems[0].id;
+    } else {
+      // Insert new purchase list item
+      const [result] = await connection.query<ResultSetHeader>(
+        'INSERT INTO purchase_list (item_name, quantity, unit, in_stock, required, inventory_id, date) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [item_name, quantity, unit, inStock, required, inventoryId, date]
+      );
+      resultId = result.insertId;
+    }
 
     await connection.commit();
 
     res.status(201).json({
       success: true,
       data: {
-        id: result.insertId,
+        id: resultId,
         item_name,
         quantity,
         unit,

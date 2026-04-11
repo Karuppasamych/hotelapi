@@ -118,3 +118,33 @@ export const deleteKitchenOrder = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: 'Error deleting kitchen order' });
   }
 };
+
+export const reduceItemQuantity = async (req: Request, res: Response) => {
+  try {
+    const { item_name, quantity } = req.body;
+    if (!item_name || !quantity) {
+      return res.status(400).json({ success: false, error: 'item_name and quantity are required' });
+    }
+    // Find the latest kitchen order item matching the name
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT koi.id, koi.quantity FROM kitchen_order_items koi
+       JOIN kitchen_orders ko ON koi.kitchen_order_id = ko.id
+       WHERE koi.item_name = ? AND koi.quantity > 0
+       ORDER BY ko.created_at DESC LIMIT 1`,
+      [item_name]
+    );
+    if (rows.length === 0) {
+      return res.json({ success: true, message: 'No matching kitchen order item found' });
+    }
+    const newQty = Math.max(0, rows[0].quantity - quantity);
+    if (newQty === 0) {
+      await pool.query('DELETE FROM kitchen_order_items WHERE id = ?', [rows[0].id]);
+    } else {
+      await pool.query('UPDATE kitchen_order_items SET quantity = ? WHERE id = ?', [newQty, rows[0].id]);
+    }
+    res.json({ success: true, message: `Kitchen item quantity updated to ${newQty}` });
+  } catch (error) {
+    console.error('Error reducing kitchen item quantity:', error);
+    res.status(500).json({ success: false, error: 'Error reducing quantity' });
+  }
+};

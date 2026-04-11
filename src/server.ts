@@ -16,6 +16,7 @@ import purchaseListRoutes from './routes/purchaseListRoutes';
 import billingRoutes from './routes/billingRoutes';
 import kitchenRoutes from './routes/kitchenRoutes';
 import draftRoutes from './routes/draftRoutes';
+import adminRoutes from './routes/adminRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -45,6 +46,7 @@ app.use('/api/purchase-list', purchaseListRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/kitchen', kitchenRoutes);
 app.use('/api/saved-orders', draftRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

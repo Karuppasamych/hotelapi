@@ -4,12 +4,14 @@ import {
   getAllKitchenOrders,
   getTodayKitchenOrders,
   updateKitchenOrderStatus,
-  deleteKitchenOrder
+  deleteKitchenOrder,
+  reduceItemQuantity
 } from '../controllers/kitchenController';
 
 const router = Router();
 
 router.post('/', createKitchenOrder);
+router.put('/reduce-item', reduceItemQuantity);
 router.get('/', getAllKitchenOrders);
 router.get('/today', getTodayKitchenOrders);
 router.put('/:id/status', updateKitchenOrderStatus);

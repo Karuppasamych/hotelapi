@@ -2,9 +2,21 @@ import { Request, Response } from 'express';
 import { pool } from '../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
-const CGST_RATE = 0.025;
-const SGST_RATE = 0.025;
-const SERVICE_CHARGE_RATE = 0.05;
+const getAdminRates = async () => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT setting_key, setting_value FROM admin_settings');
+    const settings: Record<string, string> = {};
+    rows.forEach((row: any) => { settings[row.setting_key] = row.setting_value; });
+    return {
+      serviceChargeEnabled: settings.service_charge_enabled !== 'false',
+      serviceChargeRate: parseFloat(settings.service_charge_percent || '5') / 100,
+      cgstRate: parseFloat(settings.cgst_percent || '2.5') / 100,
+      sgstRate: parseFloat(settings.sgst_percent || '2.5') / 100,
+    };
+  } catch {
+    return { serviceChargeEnabled: true, serviceChargeRate: 0.05, cgstRate: 0.025, sgstRate: 0.025 };
+  }
+};
 
 const generateBillNumber = (): string => {
   const prefix = 'MPH';
@@ -35,9 +47,10 @@ export const createBill = async (req: Request, res: Response) => {
     }
 
     const subtotal = orders.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
-    const serviceCharge = parseFloat((subtotal * SERVICE_CHARGE_RATE).toFixed(2));
-    const cgst = parseFloat((subtotal * CGST_RATE).toFixed(2));
-    const sgst = parseFloat((subtotal * SGST_RATE).toFixed(2));
+    const rates = await getAdminRates();
+    const serviceCharge = rates.serviceChargeEnabled ? parseFloat((subtotal * rates.serviceChargeRate).toFixed(2)) : 0;
+    const cgst = parseFloat((subtotal * rates.cgstRate).toFixed(2));
+    const sgst = parseFloat((subtotal * rates.sgstRate).toFixed(2));
     const totalAmount = parseFloat((subtotal + serviceCharge + cgst + sgst).toFixed(2));
     const changeReturned = paymentMethod === 'cash' ? Math.max(0, parseFloat((amountPaid - totalAmount).toFixed(2))) : 0;
 

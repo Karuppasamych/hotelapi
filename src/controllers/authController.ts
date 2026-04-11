@@ -106,3 +106,50 @@ export const getProfile = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to get profile' });
   }
 };
+
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const [users] = await pool.execute<UserRow[]>(
+      'SELECT id, username, name, role, is_active, created_at FROM users ORDER BY created_at DESC'
+    );
+    res.json({ success: true, data: users });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch users' });
+  }
+};
+
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, role, is_active, password } = req.body;
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await pool.execute(
+        'UPDATE users SET name = ?, role = ?, is_active = ?, password = ? WHERE id = ?',
+        [name, role, is_active !== false, hashedPassword, id]
+      );
+    } else {
+      await pool.execute(
+        'UPDATE users SET name = ?, role = ?, is_active = ? WHERE id = ?',
+        [name, role, is_active !== false, id]
+      );
+    }
+    res.json({ success: true, message: 'User updated' });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ success: false, error: 'Failed to update user' });
+  }
+};
+
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await pool.execute('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ success: true, message: 'User deleted' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete user' });
+  }
+};

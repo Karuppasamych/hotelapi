@@ -79,3 +79,37 @@ export const deleteSavedOrder = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: 'Error deleting saved order' });
   }
 };
+
+export const updateSavedOrder = async (req: Request, res: Response) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { id } = req.params;
+    const { mobile_number, customer_name, order_type, table_number, number_of_persons, items } = req.body;
+
+    await connection.query(
+      'UPDATE saved_orders SET mobile_number = ?, customer_name = ?, order_type = ?, table_number = ?, number_of_persons = ? WHERE id = ?',
+      [mobile_number || null, customer_name || null, order_type || 'dine-in', table_number || null, number_of_persons || null, id]
+    );
+
+    // Delete old items and insert new
+    await connection.query('DELETE FROM saved_order_items WHERE saved_order_id = ?', [id]);
+    if (items && items.length > 0) {
+      for (const item of items) {
+        await connection.query(
+          'INSERT INTO saved_order_items (saved_order_id, item_name, price, quantity, category) VALUES (?, ?, ?, ?, ?)',
+          [id, item.name, item.price, item.quantity, item.category || null]
+        );
+      }
+    }
+
+    await connection.commit();
+    res.json({ success: true, message: 'Saved order updated' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error updating saved order:', error);
+    res.status(500).json({ success: false, error: 'Error updating saved order' });
+  } finally {
+    connection.release();
+  }
+};
