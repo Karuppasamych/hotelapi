@@ -12,3 +12,5 @@ INSERT INTO admin_settings (setting_key, setting_value) VALUES
   ('cgst_percent', '2.5'),
   ('sgst_percent', '2.5')
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);
+
+ALTER TABLE admin_settings MODIFY COLUMN setting_value TEXT NOT NULL;

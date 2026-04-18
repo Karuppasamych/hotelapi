@@ -7,14 +7,19 @@ const getAdminRates = async () => {
     const [rows] = await pool.query<RowDataPacket[]>('SELECT setting_key, setting_value FROM admin_settings');
     const settings: Record<string, string> = {};
     rows.forEach((row: any) => { settings[row.setting_key] = row.setting_value; });
+    let customCharges: any[] = [];
+    if (settings.custom_charges) {
+      try { customCharges = JSON.parse(settings.custom_charges).filter((c: any) => c.enabled); } catch {}
+    }
     return {
       serviceChargeEnabled: settings.service_charge_enabled !== 'false',
       serviceChargeRate: parseFloat(settings.service_charge_percent || '5') / 100,
       cgstRate: parseFloat(settings.cgst_percent || '2.5') / 100,
       sgstRate: parseFloat(settings.sgst_percent || '2.5') / 100,
+      customCharges,
     };
   } catch {
-    return { serviceChargeEnabled: true, serviceChargeRate: 0.05, cgstRate: 0.025, sgstRate: 0.025 };
+    return { serviceChargeEnabled: true, serviceChargeRate: 0.05, cgstRate: 0.025, sgstRate: 0.025, customCharges: [] };
   }
 };
 
@@ -51,7 +56,8 @@ export const createBill = async (req: Request, res: Response) => {
     const serviceCharge = rates.serviceChargeEnabled ? parseFloat((subtotal * rates.serviceChargeRate).toFixed(2)) : 0;
     const cgst = parseFloat((subtotal * rates.cgstRate).toFixed(2));
     const sgst = parseFloat((subtotal * rates.sgstRate).toFixed(2));
-    const totalAmount = parseFloat((subtotal + serviceCharge + cgst + sgst).toFixed(2));
+    const customChargesTotal = rates.customCharges.reduce((sum: number, c: any) => sum + parseFloat((subtotal * c.percent / 100).toFixed(2)), 0);
+    const totalAmount = parseFloat((subtotal + serviceCharge + cgst + sgst + customChargesTotal).toFixed(2));
     const changeReturned = paymentMethod === 'cash' ? Math.max(0, parseFloat((amountPaid - totalAmount).toFixed(2))) : 0;
 
     const billNumber = generateBillNumber();
