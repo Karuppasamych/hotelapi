@@ -115,6 +115,32 @@ export const getAllPurchaseList = async (req: Request, res: Response) => {
   }
 };
 
+export const updatePurchaseItem = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { item_name, quantity, unit } = req.body;
+    if (!item_name || quantity == null || !unit) {
+      return res.status(400).json({ success: false, error: 'item_name, quantity, and unit are required' });
+    }
+    // Recalculate in_stock from inventory
+    const [inv] = await pool.query<RowDataPacket[]>(
+      'SELECT quantity_available FROM inventory WHERE LOWER(name) = LOWER(?)',
+      [item_name]
+    );
+    const inStock = inv.length > 0 ? parseFloat(inv[0].quantity_available) || 0 : 0;
+    const required = quantity > inStock ? quantity : 0;
+
+    await pool.query(
+      'UPDATE purchase_list SET item_name = ?, quantity = ?, unit = ?, in_stock = ?, required = ? WHERE id = ?',
+      [item_name, quantity, unit, inStock, required, id]
+    );
+    res.json({ success: true, message: 'Purchase item updated' });
+  } catch (error) {
+    console.error('Error updating purchase item:', error);
+    res.status(500).json({ success: false, error: 'Error updating purchase item' });
+  }
+};
+
 export const deletePurchaseItem = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
