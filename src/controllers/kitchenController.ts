@@ -14,7 +14,7 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
   try {
     await connection.beginTransaction();
 
-    const { table_number, order_type, number_of_persons, customer_name, mobile_number, items } = req.body;
+    const { table_number, order_type, number_of_persons, customer_name, mobile_number, items, initiated_by } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Items are required' });
@@ -23,9 +23,9 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
     const orderNumber = generateKOTNumber();
 
     const [result] = await connection.query<ResultSetHeader>(
-      `INSERT INTO kitchen_orders (order_number, table_number, order_type, number_of_persons, customer_name, mobile_number) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [orderNumber, table_number || null, order_type || 'dine-in', number_of_persons || null, customer_name || null, mobile_number || null]
+      `INSERT INTO kitchen_orders (order_number, table_number, order_type, number_of_persons, customer_name, mobile_number, initiated_by) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [orderNumber, table_number || null, order_type || 'dine-in', number_of_persons || null, customer_name || null, mobile_number || null, initiated_by || null]
     );
 
     const orderId = result.insertId;
@@ -146,5 +146,22 @@ export const reduceItemQuantity = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error reducing kitchen item quantity:', error);
     res.status(500).json({ success: false, error: 'Error reducing quantity' });
+  }
+};
+
+export const deletePendingByMobile = async (req: Request, res: Response) => {
+  try {
+    const { mobile_number } = req.body;
+    if (!mobile_number) {
+      return res.status(400).json({ success: false, error: 'mobile_number is required' });
+    }
+    const [result] = await pool.query<ResultSetHeader>(
+      "DELETE FROM kitchen_orders WHERE mobile_number = ? AND status = 'pending'",
+      [mobile_number]
+    );
+    res.json({ success: true, message: `${result.affectedRows} pending kitchen order(s) deleted` });
+  } catch (error) {
+    console.error('Error deleting pending kitchen orders:', error);
+    res.status(500).json({ success: false, error: 'Error deleting pending orders' });
   }
 };

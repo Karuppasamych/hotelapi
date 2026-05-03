@@ -5,12 +5,14 @@ import {
   getTodayKitchenOrders,
   updateKitchenOrderStatus,
   deleteKitchenOrder,
-  reduceItemQuantity
+  reduceItemQuantity,
+  deletePendingByMobile
 } from '../controllers/kitchenController';
 
 const router = Router();
 
 router.post('/', createKitchenOrder);
+router.post('/delete-pending', deletePendingByMobile);
 router.put('/reduce-item', reduceItemQuantity);
 router.get('/', getAllKitchenOrders);
 router.get('/today', getTodayKitchenOrders);

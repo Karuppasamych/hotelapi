@@ -67,12 +67,12 @@ export const createRecipe = async (req: Request, res: Response) => {
   try {
     await connection.beginTransaction();
     
-    const { name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price, ingredients, instructions } = req.body;
+    const { name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price, tax_applicable, ingredients, instructions } = req.body;
     
     // Insert recipe
     const [result] = await connection.query<ResultSetHeader>(
-      'INSERT INTO recipes (name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price || 0]
+      'INSERT INTO recipes (name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price, tax_applicable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price || 0, tax_applicable !== false ? 1 : 0]
     );
     
     const recipeId = result.insertId;
@@ -113,12 +113,12 @@ export const updateRecipe = async (req: Request, res: Response) => {
     await connection.beginTransaction();
     
     const { id } = req.params;
-    const { name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price, ingredients, instructions } = req.body;
+    const { name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price, tax_applicable, ingredients, instructions } = req.body;
     
     // Update recipe
     await connection.query(
-      'UPDATE recipes SET name = ?, category = ?, cuisine_id = ?, description = ?, prep_time = ?, cook_time = ?, servings = ?, difficulty = ?, price = ? WHERE id = ?',
-      [name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price || 0, id]
+      'UPDATE recipes SET name = ?, category = ?, cuisine_id = ?, description = ?, prep_time = ?, cook_time = ?, servings = ?, difficulty = ?, price = ?, tax_applicable = ? WHERE id = ?',
+      [name, category, cuisine_id, description, prep_time, cook_time, servings, difficulty, price || 0, tax_applicable !== false ? 1 : 0, id]
     );
     
     // Delete old ingredients and instructions

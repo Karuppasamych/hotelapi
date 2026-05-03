@@ -17,8 +17,8 @@ export const createSavedOrder = async (req: Request, res: Response) => {
     if (items && items.length > 0) {
       for (const item of items) {
         await connection.query(
-          'INSERT INTO saved_order_items (saved_order_id, item_name, price, quantity, category) VALUES (?, ?, ?, ?, ?)',
-          [orderId, item.name, item.price, item.quantity, item.category || null]
+          'INSERT INTO saved_order_items (saved_order_id, item_name, price, quantity, category, tax_applicable) VALUES (?, ?, ?, ?, ?, ?)',
+          [orderId, item.name, item.price, item.quantity, item.category || null, item.taxApplicable !== false ? 1 : 0]
         );
       }
     }
@@ -59,6 +59,7 @@ export const getAllSavedOrders = async (req: Request, res: Response) => {
           price: parseFloat(item.price),
           quantity: item.quantity,
           category: item.category || 'General',
+          taxApplicable: item.tax_applicable !== 0,
         })),
       });
     }
@@ -97,8 +98,8 @@ export const updateSavedOrder = async (req: Request, res: Response) => {
     if (items && items.length > 0) {
       for (const item of items) {
         await connection.query(
-          'INSERT INTO saved_order_items (saved_order_id, item_name, price, quantity, category) VALUES (?, ?, ?, ?, ?)',
-          [id, item.name, item.price, item.quantity, item.category || null]
+          'INSERT INTO saved_order_items (saved_order_id, item_name, price, quantity, category, tax_applicable) VALUES (?, ?, ?, ?, ?, ?)',
+          [id, item.name, item.price, item.quantity, item.category || null, item.taxApplicable !== false ? 1 : 0]
         );
       }
     }

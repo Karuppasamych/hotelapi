@@ -13,13 +13,14 @@ const getAdminRates = async () => {
     }
     return {
       serviceChargeEnabled: settings.service_charge_enabled !== 'false',
+      serviceChargeParcelExempt: settings.service_charge_parcel_exempt !== 'false',
       serviceChargeRate: parseFloat(settings.service_charge_percent || '5') / 100,
       cgstRate: parseFloat(settings.cgst_percent || '2.5') / 100,
       sgstRate: parseFloat(settings.sgst_percent || '2.5') / 100,
       customCharges,
     };
   } catch {
-    return { serviceChargeEnabled: true, serviceChargeRate: 0.05, cgstRate: 0.025, sgstRate: 0.025, customCharges: [] };
+    return { serviceChargeEnabled: true, serviceChargeParcelExempt: true, serviceChargeRate: 0.05, cgstRate: 0.025, sgstRate: 0.025, customCharges: [] };
   }
 };
 
@@ -44,7 +45,8 @@ export const createBill = async (req: Request, res: Response) => {
       orders,
       paymentMethod,
       transactionId,
-      amountPaid
+      amountPaid,
+      initiatedBy
     } = req.body;
 
     if (!mobileNumber || !orders || orders.length === 0 || !paymentMethod || amountPaid === undefined) {
@@ -52,11 +54,14 @@ export const createBill = async (req: Request, res: Response) => {
     }
 
     const subtotal = orders.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+    const taxableSubtotal = orders.filter((item: any) => item.taxApplicable !== false).reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
     const rates = await getAdminRates();
-    const serviceCharge = rates.serviceChargeEnabled ? parseFloat((subtotal * rates.serviceChargeRate).toFixed(2)) : 0;
-    const cgst = parseFloat((subtotal * rates.cgstRate).toFixed(2));
-    const sgst = parseFloat((subtotal * rates.sgstRate).toFixed(2));
-    const customChargesTotal = rates.customCharges.reduce((sum: number, c: any) => sum + parseFloat((subtotal * c.percent / 100).toFixed(2)), 0);
+    const isParcel = orderType === 'parcel';
+    const applyServiceCharge = rates.serviceChargeEnabled && !(isParcel && rates.serviceChargeParcelExempt);
+    const serviceCharge = applyServiceCharge ? parseFloat((taxableSubtotal * rates.serviceChargeRate).toFixed(2)) : 0;
+    const cgst = parseFloat((taxableSubtotal * rates.cgstRate).toFixed(2));
+    const sgst = parseFloat((taxableSubtotal * rates.sgstRate).toFixed(2));
+    const customChargesTotal = rates.customCharges.reduce((sum: number, c: any) => sum + parseFloat((taxableSubtotal * c.percent / 100).toFixed(2)), 0);
     const totalAmount = parseFloat((subtotal + serviceCharge + cgst + sgst + customChargesTotal).toFixed(2));
     const changeReturned = paymentMethod === 'cash' ? Math.max(0, parseFloat((amountPaid - totalAmount).toFixed(2))) : 0;
 
@@ -64,8 +69,8 @@ export const createBill = async (req: Request, res: Response) => {
 
     const [billResult] = await connection.query<ResultSetHeader>(
       `INSERT INTO bills (bill_number, customer_name, mobile_number, order_type, table_number, number_of_persons, 
-        subtotal, service_charge, cgst, sgst, total_amount, payment_method, transaction_id, amount_paid, change_returned)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        subtotal, service_charge, cgst, sgst, total_amount, payment_method, transaction_id, amount_paid, change_returned, initiated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         billNumber,
         customerName || 'Customer',
@@ -81,7 +86,8 @@ export const createBill = async (req: Request, res: Response) => {
         paymentMethod,
         transactionId || null,
         amountPaid,
-        changeReturned
+        changeReturned,
+        initiatedBy || null
       ]
     );
 
