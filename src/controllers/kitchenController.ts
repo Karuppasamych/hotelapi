@@ -138,7 +138,22 @@ export const reduceItemQuantity = async (req: Request, res: Response) => {
     }
     const newQty = Math.max(0, rows[0].quantity - quantity);
     if (newQty === 0) {
+      // Get the kitchen_order_id before deleting the item
+      const [itemRow] = await pool.query<RowDataPacket[]>(
+        'SELECT kitchen_order_id FROM kitchen_order_items WHERE id = ?', [rows[0].id]
+      );
       await pool.query('DELETE FROM kitchen_order_items WHERE id = ?', [rows[0].id]);
+      // Check if the kitchen order has any remaining items
+      if (itemRow.length > 0) {
+        const orderId = itemRow[0].kitchen_order_id;
+        const [remaining] = await pool.query<RowDataPacket[]>(
+          'SELECT COUNT(*) as count FROM kitchen_order_items WHERE kitchen_order_id = ?', [orderId]
+        );
+        if (remaining[0].count === 0) {
+          // No items left — delete the entire kitchen order
+          await pool.query('DELETE FROM kitchen_orders WHERE id = ?', [orderId]);
+        }
+      }
     } else {
       await pool.query('UPDATE kitchen_order_items SET quantity = ? WHERE id = ?', [newQty, rows[0].id]);
     }
