@@ -61,7 +61,11 @@ export const createBill = async (req: Request, res: Response) => {
     const serviceCharge = applyServiceCharge ? parseFloat((taxableSubtotal * rates.serviceChargeRate).toFixed(2)) : 0;
     const cgst = parseFloat((taxableSubtotal * rates.cgstRate).toFixed(2));
     const sgst = parseFloat((taxableSubtotal * rates.sgstRate).toFixed(2));
-    const customChargesTotal = rates.customCharges.reduce((sum: number, c: any) => sum + parseFloat((taxableSubtotal * c.percent / 100).toFixed(2)), 0);
+    const customChargesTotal = rates.customCharges.reduce((sum: number, c: any) => {
+      const excluded: string[] = c.excluded_categories || [];
+      const applicableTotal = orders.filter((item: any) => item.taxApplicable !== false && !excluded.includes(item.category || '')).reduce((s: number, item: any) => s + (item.price * item.quantity), 0);
+      return sum + parseFloat((applicableTotal * c.percent / 100).toFixed(2));
+    }, 0);
     const totalAmount = parseFloat((subtotal + serviceCharge + cgst + sgst + customChargesTotal).toFixed(2));
     const changeReturned = paymentMethod === 'cash' ? Math.max(0, parseFloat((amountPaid - totalAmount).toFixed(2))) : 0;
 
