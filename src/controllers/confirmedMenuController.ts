@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { logActivity } from '../utils/activityLogger';
 
 export const createConfirmedMenu = async (req: Request, res: Response) => {
   const connection = await pool.getConnection();
@@ -28,6 +29,7 @@ export const createConfirmedMenu = async (req: Request, res: Response) => {
     }
     
     await connection.commit();
+    await logActivity({ action: 'confirm_menu', category: 'menu', description: `Menu confirmed for ${date} (${meal_time || 'lunch'}) - ${dishes?.length || 0} dishes`, metadata: { menuId, date, meal_time, dishCount: dishes?.length || 0 } });
     res.status(201).json({ success: true, data: { id: menuId }, message: 'Menu confirmed successfully' });
   } catch (error) {
     await connection.rollback();
@@ -160,6 +162,7 @@ export const updateConfirmedMenu = async (req: Request, res: Response) => {
     }
     
     await connection.commit();
+    await logActivity({ action: 'update_menu', category: 'menu', description: `Menu #${id} updated - ${dishes?.length || 0} dishes`, metadata: { id, meal_time, dishCount: dishes?.length || 0 } });
     res.json({ success: true, message: 'Menu updated successfully' });
   } catch (error) {
     await connection.rollback();
@@ -174,6 +177,7 @@ export const deleteConfirmedMenu = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM confirmed_menus WHERE id = ?', [id]);
+    await logActivity({ action: 'delete_menu', category: 'menu', description: `Menu #${id} deleted`, metadata: { id } });
     res.json({ success: true, message: 'Menu deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Error deleting menu' });

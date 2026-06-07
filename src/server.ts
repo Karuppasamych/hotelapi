@@ -9,6 +9,7 @@ import authRoutes from './routes/authRoutes';
 import recipeRoutes from './routes/recipeRoutes';
 import inventoryRoutes from './routes/inventoryRoutes';
 import inventoryCategoryRoutes from './routes/inventoryCategoryRoutes';
+import managerTodoRoutes from './routes/managerTodoRoutes';
 import salesRoutes from './routes/salesRoutes';
 import preparedRoutes from './routes/preparedRoutes';
 import cuisineRoutes from './routes/cuisineRoutes';
@@ -18,6 +19,7 @@ import billingRoutes from './routes/billingRoutes';
 import kitchenRoutes from './routes/kitchenRoutes';
 import draftRoutes from './routes/draftRoutes';
 import adminRoutes from './routes/adminRoutes';
+import activityLogRoutes from './routes/activityLogRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -40,6 +42,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/inventory-categories', inventoryCategoryRoutes);
+app.use('/api/manager-todo', managerTodoRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/prepared', preparedRoutes);
 app.use('/api/cuisines', cuisineRoutes);
@@ -49,6 +52,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/kitchen', kitchenRoutes);
 app.use('/api/saved-orders', draftRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/activity-logs', activityLogRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

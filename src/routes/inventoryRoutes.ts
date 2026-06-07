@@ -8,7 +8,8 @@ import {
   getInventoryByCategory,
   getLowStockItems,
   searchInventoryItems,
-  getNextProductCode
+  getNextProductCode,
+  deductStock
 } from '../controllers/inventoryController';
 
 const router = Router();
@@ -21,6 +22,7 @@ router.get('/search', searchInventoryItems);
 router.get('/category/:category', getInventoryByCategory);
 router.get('/:id', getInventoryById);
 router.post('/', addInventoryItem);
+router.post('/:id/deduct', deductStock);
 router.put('/:id', updateInventoryItem);
 router.delete('/:id', deleteInventoryItem);
 

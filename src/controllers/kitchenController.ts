@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { logActivity } from '../utils/activityLogger';
 
 const generateKOTNumber = (): string => {
   const now = new Date();
@@ -38,6 +39,7 @@ export const createKitchenOrder = async (req: Request, res: Response) => {
     }
 
     await connection.commit();
+    await logActivity({ action: 'create_kot', category: 'kitchen', description: `KOT ${orderNumber} created - ${items.length} items`, user: initiated_by, metadata: { orderId, orderNumber, table_number, order_type, itemCount: items.length } });
     res.status(201).json({ success: true, data: { id: orderId, orderNumber }, message: 'KOT created successfully' });
   } catch (error) {
     await connection.rollback();
@@ -101,6 +103,7 @@ export const updateKitchenOrderStatus = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Invalid status' });
     }
     await pool.query('UPDATE kitchen_orders SET status = ? WHERE id = ?', [status, id]);
+    await logActivity({ action: 'update_kot_status', category: 'kitchen', description: `KOT #${id} status changed to ${status}`, metadata: { id, status } });
     res.json({ success: true, message: 'Status updated' });
   } catch (error) {
     console.error('Error updating kitchen order status:', error);
@@ -112,6 +115,7 @@ export const deleteKitchenOrder = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM kitchen_orders WHERE id = ?', [id]);
+    await logActivity({ action: 'delete_kot', category: 'kitchen', description: `Kitchen order #${id} deleted`, metadata: { id } });
     res.json({ success: true, message: 'Kitchen order deleted' });
   } catch (error) {
     console.error('Error deleting kitchen order:', error);

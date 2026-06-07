@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
 import { RowDataPacket } from 'mysql2';
+import { logActivity } from '../utils/activityLogger';
 
 export const getSettings = async (req: Request, res: Response) => {
   try {
@@ -23,6 +24,7 @@ export const updateSettings = async (req: Request, res: Response) => {
         [key, String(value), String(value)]
       );
     }
+    await logActivity({ action: 'update_settings', category: 'admin', description: `Settings updated: ${Object.keys(settings).join(', ')}`, metadata: settings });
     res.json({ success: true, message: 'Settings updated' });
   } catch (error) {
     console.error('Error updating settings:', error);

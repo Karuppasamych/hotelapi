@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from '../config/database';
 import { RowDataPacket } from 'mysql2';
+import { logActivity } from '../utils/activityLogger';
 
 interface UserRow extends RowDataPacket {
   id: number;
@@ -42,6 +43,8 @@ export const login = async (req: Request, res: Response) => {
       process.env.JWT_SECRET || 'your_secret_key'
     );
 
+    await logActivity({ action: 'login', category: 'auth', description: `User ${user.username} logged in`, user: user.username, metadata: { role: user.role } });
+
     res.json({
       token,
       user: {
@@ -73,6 +76,8 @@ export const register = async (req: Request, res: Response) => {
     );
 
     const insertId = (result as any).insertId;
+
+    await logActivity({ action: 'register', category: 'auth', description: `New user registered: ${username} (${role})`, user: username, metadata: { role } });
 
     res.status(201).json({
       message: 'User created successfully',
@@ -136,6 +141,7 @@ export const updateUser = async (req: Request, res: Response) => {
         [name, role, is_active !== false, id]
       );
     }
+    await logActivity({ action: 'update_user', category: 'auth', description: `User ${name} updated`, metadata: { userId: id, role, is_active } });
     res.json({ success: true, message: 'User updated' });
   } catch (error) {
     console.error('Error updating user:', error);
@@ -147,6 +153,7 @@ export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await pool.execute('DELETE FROM users WHERE id = ?', [id]);
+    await logActivity({ action: 'delete_user', category: 'auth', description: `User ID ${id} deleted`, metadata: { userId: id } });
     res.json({ success: true, message: 'User deleted' });
   } catch (error) {
     console.error('Error deleting user:', error);

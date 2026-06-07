@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { logActivity } from '../utils/activityLogger';
 
 export const getAllRecipes = async (req: Request, res: Response) => {
   try {
@@ -98,6 +99,7 @@ export const createRecipe = async (req: Request, res: Response) => {
     }
     
     await connection.commit();
+    await logActivity({ action: 'create_recipe', category: 'recipe', description: `Recipe created: ${name}`, metadata: { recipeId, name, category, servings, price } });
     res.status(201).json({ id: recipeId, message: 'Recipe created successfully' });
   } catch (error) {
     await connection.rollback();
@@ -146,6 +148,7 @@ export const updateRecipe = async (req: Request, res: Response) => {
     }
     
     await connection.commit();
+    await logActivity({ action: 'update_recipe', category: 'recipe', description: `Recipe updated: ${name}`, metadata: { id, name, category, servings, price } });
     res.json({ message: 'Recipe updated successfully' });
   } catch (error) {
     await connection.rollback();
@@ -191,6 +194,7 @@ export const deleteRecipe = async (req: Request, res: Response) => {
 
     await connection.query('DELETE FROM recipes WHERE id = ?', [id]);
     await connection.commit();
+    await logActivity({ action: 'delete_recipe', category: 'recipe', description: `Recipe #${id} deleted`, metadata: { id } });
     res.json({ message: 'Recipe deleted successfully' });
   } catch (error) {
     await connection.rollback();

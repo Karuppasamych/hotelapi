@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
 import { RowDataPacket } from 'mysql2';
+import { logActivity } from '../utils/activityLogger';
 
 interface InventoryRow extends RowDataPacket {
   id: string;
@@ -8,6 +9,7 @@ interface InventoryRow extends RowDataPacket {
   name: string;
   category: string;
   quantity_available: number;
+  prepared_stock: number;
   unit: string;
   price: number;
   minimum_stock: number;
@@ -42,6 +44,7 @@ export const getAllInventory = async (req: Request, res: Response) => {
         name,
         category,
         quantity_available,
+        COALESCE(prepared_stock, 0) as prepared_stock,
         unit,
         price,
         minimum_stock
@@ -78,14 +81,14 @@ export const getInventoryById = async (req: Request, res: Response) => {
 
 export const addInventoryItem = async (req: Request, res: Response) => {
   try {
-    const { product_code, name, category, quantity, quantity_available, unit, price, minimum_stock } = req.body;
+    const { product_code, name, category, quantity, quantity_available, unit, price, minimum_stock, prepared_stock } = req.body;
     const quantityValue = quantity_available || quantity;
     
-    console.log('Adding inventory item:', { product_code, name, category, quantityValue, unit, price, minimum_stock });
+    console.log('Adding inventory item:', { product_code, name, category, quantityValue, unit, price, minimum_stock, prepared_stock });
     
     const [result] = await pool.execute(
-      'INSERT INTO inventory (product_code, name, category, quantity_available, unit, price, minimum_stock) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [product_code, name, category, quantityValue, unit, price, minimum_stock]
+      'INSERT INTO inventory (product_code, name, category, quantity_available, prepared_stock, unit, price, minimum_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [product_code, name, category, quantityValue, prepared_stock || 0, unit, price, minimum_stock]
     );
     
     const insertId = (result as any).insertId;
@@ -93,6 +96,8 @@ export const addInventoryItem = async (req: Request, res: Response) => {
       'SELECT *, quantity_available as quantity FROM inventory WHERE id = ?',
       [insertId]
     );
+
+    await logActivity({ action: 'add_inventory', category: 'inventory', description: `Added ${name} (${product_code})`, metadata: { id: insertId, name, category, quantity: quantityValue, unit } });
     
     res.status(201).json(newItem[0]);
   } catch (error) {
@@ -104,11 +109,11 @@ export const addInventoryItem = async (req: Request, res: Response) => {
 export const updateInventoryItem = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { product_code, name, category, quantity, quantity_available, unit, price, minimum_stock } = req.body;
+    const { product_code, name, category, quantity, quantity_available, unit, price, minimum_stock, prepared_stock } = req.body;
     const quantityValue = quantity_available !== undefined ? quantity_available : quantity;
     
     console.log('Update inventory request:', { id, body: req.body });
-    console.log('Values to update:', { product_code, name, category, quantityValue, unit, price, minimum_stock });
+    console.log('Values to update:', { product_code, name, category, quantityValue, unit, price, minimum_stock, prepared_stock });
     
     // Validate required fields
     if (product_code === undefined || name === undefined || category === undefined || 
@@ -118,14 +123,16 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
     }
     
     await pool.execute(
-      'UPDATE inventory SET product_code = ?, name = ?, category = ?, quantity_available = ?, unit = ?, price = ?, minimum_stock = ? WHERE id = ?',
-      [product_code, name, category, quantityValue, unit, price, minimum_stock, id]
+      'UPDATE inventory SET product_code = ?, name = ?, category = ?, quantity_available = ?, prepared_stock = ?, unit = ?, price = ?, minimum_stock = ? WHERE id = ?',
+      [product_code, name, category, quantityValue, prepared_stock || 0, unit, price, minimum_stock, id]
     );
     
     const [updatedItem] = await pool.execute<InventoryRow[]>(
       'SELECT * FROM inventory WHERE id = ?',
       [id]
     );
+
+    await logActivity({ action: 'update_inventory', category: 'inventory', description: `Updated ${name} (${product_code})`, metadata: { id, name, category, quantity: quantityValue, prepared_stock } });
     
     res.json(updatedItem[0]);
   } catch (error) {
@@ -139,6 +146,8 @@ export const deleteInventoryItem = async (req: Request, res: Response) => {
     const { id } = req.params;
     
     await pool.execute('DELETE FROM inventory WHERE id = ?', [id]);
+
+    await logActivity({ action: 'delete_inventory', category: 'inventory', description: `Deleted inventory item ID ${id}`, metadata: { id } });
     
     res.json({ message: 'Item deleted successfully' });
   } catch (error) {
@@ -192,5 +201,55 @@ export const searchInventoryItems = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error searching inventory items:', error);
     res.status(500).json({ error: 'Failed to search items' });
+  }
+};
+
+// Deduct stock - reduces from prepared_stock first, then from quantity_available
+export const deductStock = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { quantity } = req.body;
+
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({ error: 'Quantity must be a positive number' });
+    }
+
+    const [rows] = await pool.execute<InventoryRow[]>('SELECT * FROM inventory WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const item = rows[0];
+    const preparedStock = Number(item.prepared_stock) || 0;
+    const availableStock = Number(item.quantity_available) || 0;
+    let remaining = quantity;
+
+    let newPrepared = preparedStock;
+    let newAvailable = availableStock;
+
+    // Deduct from prepared_stock first
+    if (remaining > 0 && newPrepared > 0) {
+      const deductFromPrepared = Math.min(remaining, newPrepared);
+      newPrepared -= deductFromPrepared;
+      remaining -= deductFromPrepared;
+    }
+
+    // Then deduct from quantity_available
+    if (remaining > 0) {
+      newAvailable = Math.max(0, newAvailable - remaining);
+    }
+
+    await pool.execute(
+      'UPDATE inventory SET quantity_available = ?, prepared_stock = ? WHERE id = ?',
+      [newAvailable, newPrepared, id]
+    );
+
+    await logActivity({ action: 'deduct_stock', category: 'inventory', description: `Deducted ${quantity} from ${item.name}`, metadata: { id, name: item.name, deducted: quantity, newAvailable, newPrepared } });
+
+    const [updatedItem] = await pool.execute<InventoryRow[]>('SELECT * FROM inventory WHERE id = ?', [id]);
+    res.json(updatedItem[0]);
+  } catch (error) {
+    console.error('Error deducting stock:', error);
+    res.status(500).json({ error: 'Failed to deduct stock' });
   }
 };

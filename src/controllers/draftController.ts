@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { logActivity } from '../utils/activityLogger';
 
 export const createSavedOrder = async (req: Request, res: Response) => {
   const connection = await pool.getConnection();
@@ -24,6 +25,7 @@ export const createSavedOrder = async (req: Request, res: Response) => {
     }
 
     await connection.commit();
+    await logActivity({ action: 'save_order', category: 'draft', description: `Order saved - Table ${table_number || 'N/A'}, ${items?.length || 0} items`, user: customer_name, metadata: { orderId, order_type, table_number, customer_name, mobile_number, itemCount: items?.length || 0 } });
     res.status(201).json({ success: true, data: { id: orderId } });
   } catch (error) {
     await connection.rollback();
@@ -74,6 +76,7 @@ export const deleteSavedOrder = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM saved_orders WHERE id = ?', [id]);
+    await logActivity({ action: 'delete_saved_order', category: 'draft', description: `Saved order #${id} deleted`, metadata: { id } });
     res.json({ success: true, message: 'Saved order deleted' });
   } catch (error) {
     console.error('Error deleting saved order:', error);
@@ -105,6 +108,7 @@ export const updateSavedOrder = async (req: Request, res: Response) => {
     }
 
     await connection.commit();
+    await logActivity({ action: 'update_saved_order', category: 'draft', description: `Order #${id} updated - Table ${table_number || 'N/A'}`, user: customer_name, metadata: { id, order_type, table_number, customer_name, itemCount: items?.length || 0 } });
     res.json({ success: true, message: 'Saved order updated' });
   } catch (error) {
     await connection.rollback();

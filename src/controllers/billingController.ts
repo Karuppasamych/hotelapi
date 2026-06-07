@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { logActivity } from '../utils/activityLogger';
 
 const getAdminRates = async () => {
   try {
@@ -104,7 +105,49 @@ export const createBill = async (req: Request, res: Response) => {
       );
     }
 
+    // Deduct ingredients from Manager ToDo based on recipe
+    const today = new Date().toISOString().split('T')[0];
+    for (const item of orders) {
+      // Find recipe and its ingredients
+      const [recipeRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id, servings FROM recipes WHERE name = ? LIMIT 1', [item.name]
+      );
+      if (recipeRows.length > 0) {
+        const recipe = recipeRows[0];
+        const baseServings = parseInt(recipe.servings) || 1;
+        const [ingredients] = await connection.query<RowDataPacket[]>(
+          'SELECT ingredient_name, quantity, unit FROM recipe_ingredients WHERE recipe_id = ?', [recipe.id]
+        );
+        for (const ing of ingredients) {
+          const perServing = parseFloat(ing.quantity) / baseServings;
+          const totalNeeded = perServing * item.quantity;
+          // Deduct from manager_todo
+          const [todoRows] = await connection.query<RowDataPacket[]>(
+            'SELECT id, remaining_quantity FROM manager_todo WHERE date = ? AND ingredient_name = ? AND status = "active" AND remaining_quantity > 0 ORDER BY id',
+            [today, ing.ingredient_name]
+          );
+          let qtyToDeduct = totalNeeded;
+          for (const todo of todoRows) {
+            if (qtyToDeduct <= 0) break;
+            const available = parseFloat(todo.remaining_quantity);
+            const deduct = Math.min(available, qtyToDeduct);
+            const newRemaining = available - deduct;
+            await connection.query(
+              'UPDATE manager_todo SET used_quantity = used_quantity + ?, remaining_quantity = ? WHERE id = ?',
+              [deduct, newRemaining, todo.id]
+            );
+            if (newRemaining <= 0) {
+              await connection.query('UPDATE manager_todo SET status = "completed" WHERE id = ?', [todo.id]);
+            }
+            qtyToDeduct -= deduct;
+          }
+        }
+      }
+    }
+
     await connection.commit();
+
+    await logActivity({ action: 'create_bill', category: 'billing', description: `Bill ${billNumber} created - ₹${totalAmount}`, user: initiatedBy, metadata: { billId, billNumber, totalAmount, paymentMethod, orderType, tableNumber, itemCount: orders.length } });
 
     res.status(201).json({
       id: billId,
@@ -216,6 +259,7 @@ export const createCancellation = async (req: Request, res: Response) => {
       'INSERT INTO order_cancellations (item_name, quantity, price, reason, cancelled_by, table_number, order_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [item_name, quantity || 1, price || 0, reason || null, cancelled_by || null, table_number || null, order_type || null]
     );
+    await logActivity({ action: 'cancel_order_item', category: 'billing', description: `Cancelled ${item_name} x${quantity || 1}`, user: cancelled_by, metadata: { item_name, quantity, reason, table_number } });
     res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Cancellation recorded' });
   } catch (error) {
     console.error('Error creating cancellation:', error);
