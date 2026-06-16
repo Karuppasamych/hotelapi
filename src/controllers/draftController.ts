@@ -7,11 +7,11 @@ export const createSavedOrder = async (req: Request, res: Response) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const { mobile_number, customer_name, order_type, table_number, number_of_persons, items } = req.body;
+    const { mobile_number, customer_name, order_type, table_number, number_of_persons, items, initiated_by } = req.body;
 
     const [result] = await connection.query<ResultSetHeader>(
-      'INSERT INTO saved_orders (mobile_number, customer_name, order_type, table_number, number_of_persons) VALUES (?, ?, ?, ?, ?)',
-      [mobile_number || null, customer_name || null, order_type || 'dine-in', table_number || null, number_of_persons || null]
+      'INSERT INTO saved_orders (mobile_number, customer_name, order_type, table_number, number_of_persons, initiated_by) VALUES (?, ?, ?, ?, ?, ?)',
+      [mobile_number || null, customer_name || null, order_type || 'dine-in', table_number || null, number_of_persons || null, initiated_by || null]
     );
     const orderId = result.insertId;
 
@@ -54,6 +54,7 @@ export const getAllSavedOrders = async (req: Request, res: Response) => {
         orderType: order.order_type || 'dine-in',
         tableNumber: order.table_number || '',
         numberOfPersons: order.number_of_persons || '',
+        initiatedBy: order.initiated_by || '',
         timestamp: order.created_at,
         orders: items.map(item => ({
           id: String(item.id),
@@ -89,11 +90,11 @@ export const updateSavedOrder = async (req: Request, res: Response) => {
   try {
     await connection.beginTransaction();
     const { id } = req.params;
-    const { mobile_number, customer_name, order_type, table_number, number_of_persons, items } = req.body;
+    const { mobile_number, customer_name, order_type, table_number, number_of_persons, items, initiated_by } = req.body;
 
     await connection.query(
-      'UPDATE saved_orders SET mobile_number = ?, customer_name = ?, order_type = ?, table_number = ?, number_of_persons = ? WHERE id = ?',
-      [mobile_number || null, customer_name || null, order_type || 'dine-in', table_number || null, number_of_persons || null, id]
+      'UPDATE saved_orders SET mobile_number = ?, customer_name = ?, order_type = ?, table_number = ?, number_of_persons = ?, initiated_by = ? WHERE id = ?',
+      [mobile_number || null, customer_name || null, order_type || 'dine-in', table_number || null, number_of_persons || null, initiated_by || null, id]
     );
 
     // Delete old items and insert new
